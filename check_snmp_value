@@ -1,0 +1,87 @@
+#!/usr/bin/env perl 
+
+#####
+# check_snmp_value:
+# Check script for nagios that will generate warning/critical based on
+# the actual value returned from an SNMP query rather than using thresholds.
+#
+# Author: Diddi Oscarsson <diddi@diddi.se>
+#####
+
+use warnings;
+use strict;
+
+use Nagios::Plugin;
+use Net::SNMP;
+use Getopt::Long;
+use Data::Dumper;
+
+
+my $np = Nagios::Plugin->new(
+    usage => "Usage: %s -H <host> -o <OID> -C <community> -w <warning value> -c <critical value>");
+
+$np->add_arg(
+    spec => "warning|w=i",
+    help => "-w, --warning <integer>. Set what return value should raise a warning.",
+);
+
+$np->add_arg(
+    spec => "critical|c=i",
+    help => "-c, --critical <integer>. Set what return value should raise a critical.",
+);
+
+$np->add_arg(
+    spec => "host|H=s",
+    help => "-H, --host <hostname>. Set the host/ip to send snmp queries to.",
+    required => 1,
+);
+
+$np->add_arg(
+    spec => "oid|o=s",
+    help => "-o, --oid <oid>. Set what OID to query. OID must return an integer.",
+    required => 1,
+);
+
+$np->add_arg(
+    spec => "community|C=s",
+    help => "-C, --community <community>. Set the SNMP community to use for the query.",
+    required => 1,
+);
+
+
+$np->getopts;
+
+my ($session, $error) = Net::SNMP->session(
+    -hostname => $np->opts->host,
+    -community => $np->opts->community,
+    -timeout   => "30",
+    -port      => "161",
+);
+
+if(not defined($session)) {
+    printf("ERROR: %s.\n", $error);
+    exit(UNKNOWN);
+}
+
+my $response = $session->get_request($np->opts->oid);
+my $value = $response->{$np->opts->oid};
+my $err = $session->error;
+
+if($err) {
+    printf("ERROR: %s.\n", $value);
+    exit(UNKNOWN);
+}
+
+if($value eq $np->opts->warning) {
+    printf("SNMP WARN: %s\n", $value);
+    exit(WARNING);
+}
+
+if($value eq $np->opts->critical) {
+    printf("SNMP CRIT: %s\n", $value);
+    exit(CRITICAL);
+}
+
+printf("SNMP OK: %s\n", $value);
+exit(OK);
+
