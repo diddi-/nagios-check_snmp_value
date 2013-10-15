@@ -60,6 +60,10 @@ $np->add_arg(
     help => "-p, --port <integer>. Set what SNMP port to be used. Possible values are between 0-65535. Default: 161",
 );
 
+$np->add_arg(
+    spec => "label|l=s",
+    help => "-l, --label <string>. Prepend value output with <string>. Does not affect return values to nagios.",
+);
 
 $np->getopts;
 
@@ -97,6 +101,7 @@ if(not defined($session)) {
 my $response = $session->get_request($np->opts->oid);
 my $value = $response->{$np->opts->oid};
 my $err = $session->error;
+my $label = undef;
 
 if($err) {
     printf("ERROR: %s.\n", $err);
@@ -104,15 +109,21 @@ if($err) {
 }
 
 if($value eq $np->opts->warning) {
-    printf("SNMP WARN: %s\n", $value);
+    $label = "SNMP WARN: ";
+    $label = $np->opts->label if $np->opts->label;
+    printf("%s%s\n", $label, $value);
     exit(WARNING);
 }
 
 if($value eq $np->opts->critical) {
-    printf("SNMP CRIT: %s\n", $value);
+    $label = "SNMP CRIT: ";
+    $label = $np->opts->label if $np->opts->label;
+    printf("%s%s\n", $label, $value);
     exit(CRITICAL);
 }
 
-printf("SNMP OK: %s\n", $value);
+$label = "SNMP OK: ";
+$label = $np->opts->label if $np->opts->label;
+printf("%s%s\n", $label, $value);
 exit(OK);
 
