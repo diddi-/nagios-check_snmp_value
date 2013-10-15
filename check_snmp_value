@@ -16,6 +16,8 @@ use Net::SNMP;
 use Getopt::Long;
 use Data::Dumper;
 
+my $snmp_version;
+my $snmp_port;
 
 my $np = Nagios::Plugin->new(
     usage => "Usage: %s -H <host> -o <OID> -C <community> -w <warning value> -c <critical value>");
@@ -48,14 +50,43 @@ $np->add_arg(
     required => 1,
 );
 
+$np->add_arg(
+    spec => "protocol|P=i",
+    help => "-v, --version <integer>. Set what SNMP version to be used, available versions are: 1 or 2. Default: 1",
+);
+
+$np->add_arg(
+    spec => "port|p=i",
+    help => "-p, --port <integer>. Set what SNMP port to be used. Possible values are between 0-65535. Default: 161",
+);
+
 
 $np->getopts;
+
+if(not $np->opts->protocol) {
+    $snmp_version = 1;
+}elsif($np->opts->protocol < 1 or $np->opts->protocol > 2) {
+    printf("ERROR: SNMP version out of range. Possible values are 1 or 2. Got: %s\n", $np->opts->protocol);
+    exit(UNKNOWN);
+}else {
+    $snmp_version = $np->opts->protocol;
+}
+
+if(not $np->opts->port) {
+    $snmp_port = "161";
+}elsif($np->opts->port < 0 or $np->opts->port > 65535) {
+    printf("ERROR: SNMP port out of range. Possible values are between 0-65535. Got %s\n", $np->opts->port);
+    exit(UNKNOWN);
+}else {
+    $snmp_port = $np->opts->port;
+}
 
 my ($session, $error) = Net::SNMP->session(
     -hostname => $np->opts->host,
     -community => $np->opts->community,
     -timeout   => "30",
-    -port      => "161",
+    -port      => $snmp_port,
+    -version   => $snmp_version,
 );
 
 if(not defined($session)) {
@@ -68,7 +99,7 @@ my $value = $response->{$np->opts->oid};
 my $err = $session->error;
 
 if($err) {
-    printf("ERROR: %s.\n", $value);
+    printf("ERROR: %s.\n", $err);
     exit(UNKNOWN);
 }
 
